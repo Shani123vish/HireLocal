@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard — HireLocal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+
+    <nav class="bg-gray-900 text-white p-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold">🔧 HireLocal — Admin Panel</h1>
+        <div class="space-x-4">
+            <a href="verify-workers.html" class="bg-yellow-400 text-black px-4 py-2 rounded font-semibold">Verify Workers</a>
+            <a href="../LogoutServlet" class="text-white underline">Logout</a>
+        </div>
+    </nav>
+
+    <div class="max-w-5xl mx-auto p-6">
+        <h2 class="text-2xl font-bold text-gray-700 mb-6">Admin Dashboard 📊</h2>
+
+        <div class="grid grid-cols-4 gap-4 mb-8">
+            <div class="bg-white p-5 rounded-lg shadow text-center">
+                <p class="text-3xl font-bold text-blue-700" id="totalUsers">0</p>
+                <p class="text-gray-500 mt-1">Total Users</p>
+            </div>
+            <div class="bg-white p-5 rounded-lg shadow text-center">
+                <p class="text-3xl font-bold text-green-700" id="totalWorkers">0</p>
+                <p class="text-gray-500 mt-1">Workers</p>
+            </div>
+            <div class="bg-white p-5 rounded-lg shadow text-center">
+                <p class="text-3xl font-bold text-yellow-600" id="pendingVerify">0</p>
+                <p class="text-gray-500 mt-1">Pending Verify</p>
+            </div>
+            <div class="bg-white p-5 rounded-lg shadow text-center">
+                <p class="text-3xl font-bold text-purple-700" id="totalRevenue">₹0</p>
+                <p class="text-gray-500 mt-1">Total Commission</p>
+            </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-lg shadow">
+            <h3 class="font-semibold text-gray-700 mb-3">Recent Jobs</h3>
+            <div id="recentJobs">
+                <p class="text-gray-400">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadAdminDashboard() {
+            try {
+                const res = await fetch("../AdminDashboardServlet");
+                const data = await res.json();
+
+                document.getElementById("totalUsers").textContent = data.totalUsers;
+                document.getElementById("totalWorkers").textContent = data.totalWorkers;
+                document.getElementById("pendingVerify").textContent = data.pendingVerify;
+                document.getElementById("totalRevenue").textContent = "₹" + data.totalCommission;
+
+                const container = document.getElementById("recentJobs");
+                container.innerHTML = "";
+
+                if (!data.recentJobs || data.recentJobs.length === 0) {
+                    container.innerHTML = "<p class='text-gray-400'>No jobs yet.</p>";
+                    return;
+                }
+
+                data.recentJobs.forEach(job => {
+                    container.innerHTML += `
+                        <div class="flex justify-between text-sm p-2 border-b">
+                            <span>${job.categoryName} — ${job.customerName}</span>
+                            <span class="font-semibold ${job.status === 'COMPLETED' ? 'text-green-600' : 'text-yellow-600'}">
+                                ${job.status}
+                            </span>
+                        </div>`;
+                });
+            } catch (e) {
+                document.getElementById("recentJobs").innerHTML = "<p class='text-red-400'>Error: " + e.message + "</p>";
+            }
+        }
+
+        loadAdminDashboard();
+    </script>
+</body>
+</html>

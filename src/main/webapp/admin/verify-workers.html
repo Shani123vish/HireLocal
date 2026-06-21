@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Verify Workers — HireLocal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+
+    <nav class="bg-gray-900 text-white p-4">
+        <a href="dashboard.html" class="text-white">← Admin Dashboard</a>
+        <span class="ml-4 font-bold">Verify Workers</span>
+    </nav>
+
+    <div class="max-w-4xl mx-auto p-6">
+        <h2 class="text-2xl font-bold text-gray-700 mb-6">Worker Verification 🛡️</h2>
+        <div id="workerList" class="space-y-4">
+            <p class="text-gray-400">Loading...</p>
+        </div>
+    </div>
+
+    <script>
+        async function loadPendingWorkers() {
+            try {
+                const res = await fetch("../PendingWorkersServlet");
+                const data = await res.json();
+                const container = document.getElementById("workerList");
+                container.innerHTML = "";
+
+                if (!data.workers || data.workers.length === 0) {
+                    container.innerHTML = "<p class='text-gray-400'>No workers pending verification.</p>";
+                    return;
+                }
+
+                data.workers.forEach(w => {
+                    container.innerHTML += `
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="font-bold text-lg">${w.name}</p>
+                                    <p class="text-gray-500 text-sm">📞 ${w.phone} | 📧 ${w.email}</p>
+                                    <p class="text-gray-500 text-sm">🔧 ${w.skillCategory} | 💰 ₹${w.basePrice}</p>
+                                    <p class="text-gray-500 text-sm">📍 ${w.serviceArea}</p>
+                                </div>
+                                <div class="flex flex-col gap-2 ml-4">
+                                    <button onclick="verifyWorker(${w.id}, true)"
+                                        class="bg-green-600 text-white px-5 py-2 rounded font-semibold hover:bg-green-700">
+                                        ✅ Verify
+                                    </button>
+                                    <button onclick="verifyWorker(${w.id}, false)"
+                                        class="bg-red-500 text-white px-5 py-2 rounded font-semibold hover:bg-red-600">
+                                        ❌ Reject
+                                    </button>
+                                </div>
+                            </div>
+                        </div>`;
+                });
+            } catch (e) {
+                document.getElementById("workerList").innerHTML = "<p class='text-red-400'>Error: " + e.message + "</p>";
+            }
+        }
+
+        async function verifyWorker(workerId, approve) {
+            const res = await fetch("../VerifyWorkerServlet", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: "workerId=" + workerId + "&approve=" + approve
+            });
+            const data = await res.json();
+            if (data && data.success) loadPendingWorkers();
+        }
+
+        loadPendingWorkers();
+    </script>
+</body>
+</html>

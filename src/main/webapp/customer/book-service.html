@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Book Service — HireLocal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+
+    <nav class="bg-blue-700 text-white p-4">
+        <a href="dashboard.html" class="text-white">← Back to Dashboard</a>
+        <span class="ml-4 font-bold">Book a Service</span>
+    </nav>
+
+    <div class="max-w-2xl mx-auto p-6">
+        <div class="bg-white rounded-xl shadow p-6 mb-6">
+            <h2 class="text-xl font-bold text-gray-700 mb-4">Service Details</h2>
+
+            <div class="mb-4">
+                <label class="block text-gray-600 mb-1">Select Service</label>
+                <select id="categoryId" class="w-full border rounded px-3 py-2">
+                    <option value="1">Electrician</option>
+                    <option value="2">Plumber</option>
+                    <option value="3">Carpenter</option>
+                    <option value="4">AC Repair</option>
+                    <option value="5">Painter</option>
+                    <option value="6">House Cleaning</option>
+                </select>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-gray-600 mb-1">Describe your problem</label>
+                <textarea id="description" class="w-full border rounded px-3 py-2" rows="3"></textarea>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-gray-600 mb-1">Your Address</label>
+                <input type="text" id="address" class="w-full border rounded px-3 py-2">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-gray-600 mb-1">City</label>
+                <select id="cityId" class="w-full border rounded px-3 py-2">
+                    <option value="1">Bhopal</option>
+                    <option value="2">Indore</option>
+                    <option value="3">Jabalpur</option>
+                </select>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-gray-600 mb-1">Scheduled Date & Time</label>
+                <input type="datetime-local" id="scheduledTime" class="w-full border rounded px-3 py-2">
+            </div>
+
+            <button onclick="getAIRecommendation()" class="w-full bg-purple-600 text-white py-2 rounded font-bold mb-3 hover:bg-purple-700">
+                🤖 Get AI Recommended Workers
+            </button>
+        </div>
+
+        <div id="workersSection" class="hidden">
+            <h3 class="text-lg font-semibold text-gray-700 mb-3">Recommended Workers</h3>
+            <div id="workerList" class="space-y-3 mb-4"></div>
+        </div>
+
+        <div id="selectedWorkerBox" class="hidden bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <p class="font-semibold text-blue-700">✅ Selected: <span id="selectedWorkerName"></span></p>
+            <p class="text-gray-500 text-sm mt-1">You will pay after the job is completed.</p>
+        </div>
+
+        <button onclick="confirmBooking()" id="confirmBtn" class="hidden w-full bg-blue-700 text-white py-3 rounded-lg font-bold hover:bg-blue-800">
+            Confirm Booking
+        </button>
+
+        <div id="successMsg" class="hidden mt-4 bg-green-100 text-green-700 p-4 rounded-lg text-center font-semibold"></div>
+    </div>
+
+    <script>
+    let selectedWorkerId = null;
+    let isBooking = false;
+
+    async function getAIRecommendation() {
+        const categoryId = document.getElementById("categoryId").value;
+        const cityId = document.getElementById("cityId").value;
+
+        const res = await fetch("../AIRecommendServlet", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: "categoryId=" + categoryId + "&cityId=" + cityId
+        });
+
+        const data = await res.json();
+
+        if (data && data.workers) {
+            const container = document.getElementById("workerList");
+            container.innerHTML = "";
+
+            if (data.workers.length === 0) {
+                container.innerHTML = "<p class='text-gray-400'>No workers found.</p>";
+                return;
+            }
+
+            data.workers.forEach(w => {
+                container.innerHTML += `
+                    <div class="bg-white p-4 rounded-lg shadow flex justify-between items-center cursor-pointer border-2 border-transparent hover:border-blue-500"
+                         onclick="selectWorker(${w.id}, '${w.name}')">
+                        <div>
+                            <p class="font-semibold">${w.name}</p>
+                            <p class="text-gray-500 text-sm">⭐ ${w.rating} | ${w.total_jobs} jobs done</p>
+                        </div>
+                        <p class="text-blue-700 font-bold">₹${w.base_price}</p>
+                    </div>`;
+            });
+            document.getElementById("workersSection").classList.remove("hidden");
+        }
+    }
+
+    function selectWorker(id, name) {
+        selectedWorkerId = id;
+        document.getElementById("selectedWorkerName").textContent = name;
+        document.getElementById("selectedWorkerBox").classList.remove("hidden");
+        document.getElementById("confirmBtn").classList.remove("hidden");
+    }
+
+    async function confirmBooking() {
+        if (isBooking) return;
+        isBooking = true;
+        document.getElementById("confirmBtn").disabled = true;
+        document.getElementById("confirmBtn").textContent = "Processing...";
+
+        const res1 = await fetch("../PostJobServlet", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: "categoryId=" + document.getElementById("categoryId").value +
+                  "&description=" + encodeURIComponent(document.getElementById("description").value) +
+                  "&address=" + encodeURIComponent(document.getElementById("address").value) +
+                  "&cityId=" + document.getElementById("cityId").value +
+                  "&scheduledTime=" + encodeURIComponent(document.getElementById("scheduledTime").value)
+        });
+
+        const jobData = await res1.json();
+        if (!jobData || !jobData.success) {
+            alert("Job posting failed");
+            isBooking = false;
+            document.getElementById("confirmBtn").disabled = false;
+            document.getElementById("confirmBtn").textContent = "Confirm Booking";
+            return;
+        }
+
+        const res2 = await fetch("../BookingServlet", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: "action=assign&jobId=" + jobData.jobId + "&workerId=" + selectedWorkerId
+        });
+
+        const assignData = await res2.json();
+
+        if (assignData && assignData.success) {
+            document.getElementById("successMsg").innerHTML =
+                "✅ Booking confirmed! Job ID: " + jobData.jobId +
+                "<br>💡 You will pay after the job is completed.";
+            document.getElementById("successMsg").classList.remove("hidden");
+            document.getElementById("confirmBtn").classList.add("hidden");
+        } else {
+            alert(assignData.message || "Booking failed");
+            isBooking = false;
+            document.getElementById("confirmBtn").disabled = false;
+            document.getElementById("confirmBtn").textContent = "Confirm Booking";
+        }
+    }
+    </script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Earnings — HireLocal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+
+    <nav class="bg-green-700 text-white p-4">
+        <a href="dashboard.html" class="text-white">← Dashboard</a>
+        <span class="ml-4 font-bold">My Earnings</span>
+    </nav>
+
+    <div class="max-w-3xl mx-auto p-6">
+        <h2 class="text-2xl font-bold text-gray-700 mb-6">💰 Earnings</h2>
+
+        <div class="grid grid-cols-3 gap-4 mb-6">
+            <div class="bg-white p-5 rounded-lg shadow text-center">
+                <p class="text-3xl font-bold text-green-700" id="walletBalance">₹0</p>
+                <p class="text-gray-500 mt-1">Wallet Balance</p>
+            </div>
+            <div class="bg-white p-5 rounded-lg shadow text-center">
+                <p class="text-3xl font-bold text-blue-700" id="totalEarned">₹0</p>
+                <p class="text-gray-500 mt-1">Total Earned</p>
+            </div>
+            <div class="bg-white p-5 rounded-lg shadow text-center">
+                <p class="text-3xl font-bold text-red-600" id="commissionDue">₹0</p>
+                <p class="text-gray-500 mt-1">Commission Due</p>
+            </div>
+        </div>
+
+        <div id="commissionWarning" class="hidden bg-red-50 border border-red-300 rounded-lg p-4 mb-6">
+            <p class="text-red-700 font-semibold">⚠️ You have pending commission due!</p>
+            <p class="text-red-600 text-sm mt-1">Pay commission to receive new job assignments.</p>
+            <button onclick="payCommission()" class="mt-3 bg-red-600 text-white px-5 py-2 rounded font-semibold hover:bg-red-700">
+                Pay Commission Now
+            </button>
+            <div id="commissionMsg" class="hidden mt-2 text-sm"></div>
+        </div>
+
+        <h3 class="text-lg font-semibold text-gray-700 mb-3">Transaction History</h3>
+        <div id="txnList" class="space-y-2">
+            <p class="text-gray-400">Loading...</p>
+        </div>
+    </div>
+
+    <script>
+        async function loadEarnings() {
+            try {
+                const res = await fetch("../WorkerEarningsServlet");
+                const data = await res.json();
+
+                document.getElementById("walletBalance").textContent = "₹" + data.walletBalance;
+                document.getElementById("totalEarned").textContent = "₹" + data.totalEarned;
+                document.getElementById("commissionDue").textContent = "₹" + data.commissionDue;
+
+                if (data.commissionDue > 0) {
+                    document.getElementById("commissionWarning").classList.remove("hidden");
+                } else {
+                    document.getElementById("commissionWarning").classList.add("hidden");
+                }
+
+                const container = document.getElementById("txnList");
+                container.innerHTML = "";
+
+                if (!data.transactions || data.transactions.length === 0) {
+                    container.innerHTML = "<p class='text-gray-400'>No transactions yet.</p>";
+                    return;
+                }
+
+                data.transactions.forEach(txn => {
+                    container.innerHTML += `
+                        <div class="bg-white p-3 rounded-lg shadow flex justify-between items-center">
+                            <div>
+                                <p class="font-semibold text-sm">${txn.description}</p>
+                                <p class="text-gray-400 text-xs">${txn.createdAt}</p>
+                            </div>
+                            <p class="font-bold ${txn.type === 'CREDIT' ? 'text-green-600' : 'text-red-500'}">
+                                ${txn.type === 'CREDIT' ? '+' : '-'}₹${txn.amount}
+                            </p>
+                        </div>`;
+                });
+            } catch (e) {
+                document.getElementById("txnList").innerHTML = "<p class='text-red-400'>Error: " + e.message + "</p>";
+            }
+        }
+
+        async function payCommission() {
+            const res = await fetch("../PaymentServlet", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: "action=payCommission"
+            });
+            const data = await res.json();
+            const msg = document.getElementById("commissionMsg");
+            msg.classList.remove("hidden");
+            if (data.success) {
+                msg.className = "mt-2 text-sm text-green-700";
+                msg.textContent = "✅ Commission paid successfully!";
+                setTimeout(() => loadEarnings(), 1000);
+            } else {
+                msg.className = "mt-2 text-sm text-red-600";
+                msg.textContent = data.message;
+            }
+        }
+
+        loadEarnings();
+    </script>
+</body>
+</html>

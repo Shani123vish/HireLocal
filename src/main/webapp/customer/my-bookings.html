@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My Bookings — HireLocal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+
+    <nav class="bg-blue-700 text-white p-4">
+        <a href="dashboard.html" class="text-white">← Dashboard</a>
+        <span class="ml-4 font-bold">My Bookings</span>
+    </nav>
+
+    <div class="max-w-3xl mx-auto p-6">
+        <h2 class="text-2xl font-bold text-gray-700 mb-6">My Bookings</h2>
+        <div id="bookingList" class="space-y-4">
+            <p class="text-gray-400">Loading...</p>
+        </div>
+    </div>
+
+    <div id="payModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="bg-white rounded-xl p-6 w-96">
+            <h3 class="text-lg font-bold mb-2">💳 Pay for Job</h3>
+            <input type="hidden" id="payJobId">
+            <input type="hidden" id="payWorkerId">
+            <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                <div class="flex justify-between text-sm mb-2">
+                    <span class="text-gray-500">Service Amount</span>
+                    <span class="font-bold text-blue-700" id="payAmount">₹0</span>
+                </div>
+                <p class="text-xs text-gray-400">* After payment, worker will receive their earnings</p>
+            </div>
+            <input type="number" id="payAmountInput" placeholder="Enter amount (₹)" class="w-full border rounded px-3 py-2 mb-4">
+            <button onclick="submitPayment()" class="w-full bg-green-600 text-white py-2 rounded font-bold hover:bg-green-700">Pay Now</button>
+            <button onclick="closePayModal()" class="w-full mt-2 text-gray-500 underline text-sm">Cancel</button>
+            <div id="payMsg" class="hidden mt-3 p-2 rounded text-sm"></div>
+        </div>
+    </div>
+
+    <div id="ratingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="bg-white rounded-xl p-6 w-80">
+            <h3 class="text-lg font-bold mb-4">Rate the Worker ⭐</h3>
+            <input type="hidden" id="rateJobId">
+            <div class="flex gap-2 mb-4 text-3xl justify-center">
+                <span onclick="setStar(1)" class="cursor-pointer">⭐</span>
+                <span onclick="setStar(2)" class="cursor-pointer">⭐</span>
+                <span onclick="setStar(3)" class="cursor-pointer">⭐</span>
+                <span onclick="setStar(4)" class="cursor-pointer">⭐</span>
+                <span onclick="setStar(5)" class="cursor-pointer">⭐</span>
+            </div>
+            <p class="text-center text-gray-500 mb-2">Selected: <span id="starCount">0</span> stars</p>
+            <textarea id="feedback" placeholder="Optional feedback" class="w-full border rounded px-3 py-2 mb-4" rows="2"></textarea>
+            <button onclick="submitRating()" class="w-full bg-blue-700 text-white py-2 rounded font-bold">Submit</button>
+            <button onclick="closeRating()" class="w-full mt-2 text-gray-500 underline text-sm">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        let selectedStars = 0;
+
+        async function loadBookings() {
+            try {
+                const res = await fetch("../MyBookingsServlet");
+                const data = await res.json();
+                const container = document.getElementById("bookingList");
+                container.innerHTML = "";
+
+                if (!data.jobs || data.jobs.length === 0) {
+                    container.innerHTML = "<p class='text-gray-400'>No bookings yet.</p>";
+                    return;
+                }
+
+                data.jobs.forEach(job => {
+                    container.innerHTML += `
+                        <div class="bg-white p-4 rounded-lg shadow">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="font-semibold">${job.categoryName}</p>
+                                    <p class="text-gray-500 text-sm">${job.description}</p>
+                                    <p class="text-gray-400 text-xs">📍 ${job.address} | 🕐 ${job.scheduledTime}</p>
+                                    ${job.workerName ? `<p class="text-gray-400 text-xs">👷 Worker: ${job.workerName}</p>` : ""}
+                                </div>
+                                <div class="text-right ml-4 space-y-2">
+                                    <span class="block text-xs px-2 py-1 rounded-full font-semibold
+                                        ${job.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                                          job.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
+                                          job.status === 'CANCELLED' ? 'bg-red-100 text-red-600' :
+                                          'bg-blue-100 text-blue-700'}">
+                                        ${job.status}
+                                    </span>
+                                    ${(job.status === 'PENDING' || job.status === 'ASSIGNED') ? `
+                                        <button onclick="cancelJob(${job.id})"
+                                            class="text-xs text-red-500 underline block">Cancel</button>` : ""}
+                                    ${job.status === 'COMPLETED' && !job.isPaid ? `
+                                        <button onclick="openPayModal(${job.id}, ${job.workerId})"
+                                            class="text-xs bg-green-500 text-white px-2 py-1 rounded font-semibold block">
+                                            💳 Pay Worker
+                                        </button>` : ""}
+                                    ${job.status === 'COMPLETED' && job.isPaid && !job.isRated ? `
+                                        <button onclick="openRating(${job.id})"
+                                            class="text-xs bg-yellow-400 text-black px-2 py-1 rounded font-semibold block">
+                                            ⭐ Rate Worker
+                                        </button>` : ""}
+                                    ${job.isPaid ? `<p class="text-xs text-green-600 font-semibold">Paid ✅</p>` : ""}
+                                    ${job.isRated ? `<p class="text-xs text-gray-400">Rated ✅</p>` : ""}
+                                </div>
+                            </div>
+                        </div>`;
+                });
+            } catch (e) {
+                document.getElementById("bookingList").innerHTML = "<p class='text-red-400'>Error: " + e.message + "</p>";
+            }
+        }
+
+        function openPayModal(jobId, workerId) {
+            document.getElementById("payJobId").value = jobId;
+            document.getElementById("payWorkerId").value = workerId;
+            document.getElementById("payModal").classList.remove("hidden");
+        }
+
+        function closePayModal() {
+            document.getElementById("payModal").classList.add("hidden");
+            document.getElementById("payAmountInput").value = "";
+            document.getElementById("payMsg").classList.add("hidden");
+        }
+
+        async function submitPayment() {
+            const jobId = document.getElementById("payJobId").value;
+            const workerId = document.getElementById("payWorkerId").value;
+            const amount = document.getElementById("payAmountInput").value;
+
+            if (!amount || amount <= 0) {
+                showPayMsg("Please enter valid amount", false);
+                return;
+            }
+
+            const res = await fetch("../PaymentServlet", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: "action=pay&jobId=" + jobId + "&workerId=" + workerId + "&amount=" + amount
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                showPayMsg("Payment successful! Worker received ₹" + data.workerEarning, true);
+                setTimeout(() => { closePayModal(); loadBookings(); }, 1500);
+            } else {
+                showPayMsg(data.message, false);
+            }
+        }
+
+        function showPayMsg(text, success) {
+            const msg = document.getElementById("payMsg");
+            msg.classList.remove("hidden");
+            msg.className = "mt-3 p-2 rounded text-sm " + (success ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700");
+            msg.textContent = text;
+        }
+
+        async function cancelJob(jobId) {
+            if (!confirm("Cancel this booking?")) return;
+            const res = await fetch("../CancelServlet", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: "jobId=" + jobId
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(data.penalty > 0 ? "Cancelled. Penalty: ₹" + data.penalty : "Booking cancelled.");
+                loadBookings();
+            }
+        }
+
+        function openRating(jobId) {
+            document.getElementById("rateJobId").value = jobId;
+            selectedStars = 0;
+            document.getElementById("starCount").textContent = 0;
+            document.getElementById("ratingModal").classList.remove("hidden");
+        }
+
+        function closeRating() {
+            document.getElementById("ratingModal").classList.add("hidden");
+        }
+
+        function setStar(n) {
+            selectedStars = n;
+            document.getElementById("starCount").textContent = n;
+        }
+
+        async function submitRating() {
+            const jobId = document.getElementById("rateJobId").value;
+            const feedback = document.getElementById("feedback").value;
+            const res = await fetch("../RatingServlet", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: "jobId=" + jobId + "&stars=" + selectedStars + "&feedback=" + encodeURIComponent(feedback)
+            });
+            const data = await res.json();
+            if (data.success) { closeRating(); loadBookings(); }
+        }
+
+        loadBookings();
+    </script>
+</body>
+</html>
